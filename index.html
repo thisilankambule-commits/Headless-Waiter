@@ -118,27 +118,98 @@
         }
 
         // Place order (simulated)
-        function placeOrder() {
-            if (cart.length === 0) {
-                document.getElementById('status').textContent = '⚠️ Cart is empty!';
-                document.getElementById('status').style.color = 'red';
-                return;
-            }
-            document.getElementById('status').textContent = '📨 Sending order to kitchen...';
-            document.getElementById('status').style.color = '#e67e22';
-            
-            // Simulate sending to KDS
-            setTimeout(() => {
-                document.getElementById('status').textContent = '✅ Order sent to Kitchen Display System! (Table 1)';
-                document.getElementById('status').style.color = '#27ae60';
-                cart = [];
-                updateCart();
-                // Play alert sound (optional)
-                alert('🍳 New order in kitchen!');
-            }, 1500);
-        }
+       function placeOrder() {
+    if (cart.length === 0) {
+        document.getElementById('status').textContent = '⚠️ Cart is empty!';
+        document.getElementById('status').style.color = 'red';
+        return;
+    }
 
-        renderMenu();
-    </script>
-</body>
-</html>
+    const table = parseInt(document.getElementById('table-number').value) || 1;
+    orderCounter++;
+    localStorage.setItem('order_counter', String(orderCounter));
+
+    // Calculate totals
+    let orderTotal = 0;
+    const orderItems = cart.map(item => {
+        const modCost = item.modifiers.reduce((sum, m) => {
+            const match = m.match(/\+\$(\d+\.?\d*)/);
+            return sum + (match ? parseFloat(match[1]) : 0);
+        }, 0);
+        const total = item.price + modCost;
+        orderTotal += total;
+        return {
+            name: item.name,
+            modifiers: item.modifiers,
+            total: total
+        };
+    });
+
+    const orderData = {
+        id: orderCounter,
+        table: table,
+        items: orderItems,
+        total: orderTotal,
+        time: new Date().toLocaleTimeString(),
+        completed: false,
+        timestamp: Date.now()
+    };
+
+    // ─── SAVE TO LOCALSTORAGE ───
+
+    // Get existing orders
+    let existingOrders = [];
+    try {
+        existingOrders = JSON.parse(localStorage.getItem('kds_orders') || '[]');
+    } catch (e) {
+        existingOrders = [];
+    }
+
+    // Add new order to the beginning
+    existingOrders.unshift(orderData);
+
+    // Save back to localStorage
+    localStorage.setItem('kds_orders', JSON.stringify(existingOrders));
+
+    // ─── UI FEEDBACK ───
+
+    document.getElementById('status').textContent = `✅ Order #${orderCounter} sent to kitchen! (Table ${table})`;
+    document.getElementById('status').style.color = '#27ae60';
+
+    // Clear cart
+    cart = [];
+    updateCart();
+
+    // Play confirmation sound
+    try {
+        const ctx = new(window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 1047;
+        osc.type = 'sine';
+        gain.gain.value = 0.2;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+        setTimeout(() => {
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.frequency.value = 1319;
+            osc2.type = 'sine';
+            gain2.gain.value = 0.2;
+            osc2.start();
+            osc2.stop(ctx.currentTime + 0.15);
+        }, 200);
+    } catch (e) { /* silent */ }
+
+    // Show browser notification
+    if (Notification.permission === 'granted') {
+        new Notification('🍳 New Order!', {
+            body: `Order #${orderCounter} - Table ${table}`,
+            icon: '🍳'
+        });
+    }
+}
