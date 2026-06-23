@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>👨‍🍳 Kitchen Display System</title>
     <style>
-        /* ─── RESET & BASE ─── */
         * {
             margin: 0;
             padding: 0;
@@ -24,7 +23,6 @@
             margin: 0 auto;
         }
 
-        /* ─── HEADER ─── */
         .header {
             display: flex;
             justify-content: space-between;
@@ -65,7 +63,6 @@
             border-radius: 15px;
         }
 
-        /* ─── ORDER CARD ─── */
         .order {
             background: #16213e;
             border-radius: 12px;
@@ -74,7 +71,6 @@
             border-left: 5px solid #e94560;
             color: white;
             animation: slideIn 0.3s ease-out;
-            transition: all 0.3s;
         }
 
         .order.completed {
@@ -151,7 +147,6 @@
             margin-top: 8px;
         }
 
-        /* ─── BUTTONS ─── */
         .order-actions {
             display: flex;
             gap: 10px;
@@ -186,7 +181,6 @@
             background: #c0392b;
         }
 
-        /* ─── EMPTY STATE ─── */
         .empty {
             text-align: center;
             color: #555;
@@ -200,7 +194,6 @@
             margin-bottom: 15px;
         }
 
-        /* ─── NEW ORDER FLASH ─── */
         .flash {
             animation: flash 0.5s ease 3;
         }
@@ -214,7 +207,6 @@
             }
         }
 
-        /* ─── RESPONSIVE ─── */
         @media (max-width: 600px) {
             .header h1 {
                 font-size: 20px;
@@ -237,7 +229,6 @@
 <body>
 
     <div class="container">
-        <!-- HEADER -->
         <div class="header">
             <h1>👨‍🍳 Headless Waiter <span class="badge">KDS</span></h1>
             <div class="stats">
@@ -246,7 +237,6 @@
             </div>
         </div>
 
-        <!-- ORDER LIST -->
         <div id="order-list">
             <div class="empty">
                 <span class="emoji">🍽️</span>
@@ -258,20 +248,29 @@
 
     <script>
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 1. ORDER STORAGE (localStorage so orders survive page refresh)
+        // SIMPLE STORAGE - uses localStorage
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        let orders = JSON.parse(localStorage.getItem('kds_orders') || '[]');
+        // Get orders from localStorage
+        function getOrders() {
+            try {
+                return JSON.parse(localStorage.getItem('kds_orders') || '[]');
+            } catch (e) {
+                return [];
+            }
+        }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 2. SAVE & RENDER
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        function saveOrders() {
+        // Save orders to localStorage
+        function saveOrders(orders) {
             localStorage.setItem('kds_orders', JSON.stringify(orders));
         }
 
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // RENDER ORDERS
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
         function renderOrders() {
+            const orders = getOrders();
             const list = document.getElementById('order-list');
             const active = orders.filter(o => !o.completed);
             const completed = orders.filter(o => o.completed);
@@ -290,7 +289,7 @@
                 return;
             }
 
-            // Show active orders first, then completed at the bottom
+            // Show active first, then completed
             const sorted = [...active, ...completed];
 
             list.innerHTML = sorted.map(order => `
@@ -316,7 +315,7 @@
                     </div>
 
                     <div class="order-total">
-                        Total: $${order.total || '0.00'}
+                        Total: $${order.total ? order.total.toFixed(2) : '0.00'}
                     </div>
 
                     <div class="order-actions">
@@ -332,14 +331,15 @@
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 3. ORDER ACTIONS
+        // ORDER ACTIONS
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         function markReady(orderId) {
+            const orders = getOrders();
             const order = orders.find(o => o.id === orderId);
             if (order) {
                 order.completed = true;
-                saveOrders();
+                saveOrders(orders);
                 renderOrders();
                 playSound('ready');
             }
@@ -347,8 +347,9 @@
 
         function cancelOrder(orderId) {
             if (confirm('Cancel this order?')) {
+                let orders = getOrders();
                 orders = orders.filter(o => o.id !== orderId);
-                saveOrders();
+                saveOrders(orders);
                 renderOrders();
                 playSound('cancel');
             }
@@ -356,64 +357,26 @@
 
         function deleteOrder(orderId) {
             if (confirm('Remove this completed order?')) {
+                let orders = getOrders();
                 orders = orders.filter(o => o.id !== orderId);
-                saveOrders();
+                saveOrders(orders);
                 renderOrders();
             }
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 4. RECEIVE NEW ORDER (from menu page)
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        function receiveOrder(orderData) {
-            // Check for duplicate (prevent double-add)
-            if (orders.some(o => o.id === orderData.id)) {
-                console.warn('Duplicate order ignored:', orderData.id);
-                return;
-            }
-
-            // Add to front of list
-            orders.unshift({
-                ...orderData,
-                completed: false,
-                time: new Date().toLocaleTimeString()
-            });
-
-            saveOrders();
-            renderOrders();
-            playSound('new');
-
-            // Flash the new order
-            const firstOrder = document.querySelector('.order');
-            if (firstOrder) {
-                firstOrder.classList.add('flash');
-                setTimeout(() => firstOrder.classList.remove('flash'), 1500);
-            }
-
-            // Browser notification (if allowed)
-            if (Notification.permission === 'granted') {
-                new Notification('🍳 New Order!', {
-                    body: `Order #${orderData.id} - Table ${orderData.table || 1}`,
-                    icon: '🍳'
-                });
-            }
-        }
-
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 5. SOUND EFFECTS (Web Audio)
+        // SOUND EFFECTS
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         function playSound(type) {
             try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const ctx = new(window.AudioContext || window.webkitAudioContext)();
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.connect(gain);
                 gain.connect(ctx.destination);
 
                 if (type === 'new') {
-                    // Two beeps: high-low
                     osc.frequency.value = 880;
                     osc.type = 'sine';
                     gain.gain.value = 0.3;
@@ -449,45 +412,81 @@
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 6. CHECK FOR ORDERS FROM OTHER TABS
+        // CHECK FOR NEW ORDERS EVERY 2 SECONDS
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        // Listen for messages from the menu page
+        let lastOrderCount = 0;
+
+        function checkForNewOrders() {
+            const orders = getOrders();
+            const currentCount = orders.length;
+
+            // If new order arrived
+            if (currentCount > lastOrderCount && currentCount > 0) {
+                // Check if the newest order is uncompleted
+                const newest = orders[0];
+                if (newest && !newest.completed) {
+                    playSound('new');
+                    // Flash the first order
+                    setTimeout(() => {
+                        const firstOrder = document.querySelector('.order');
+                        if (firstOrder) {
+                            firstOrder.classList.add('flash');
+                            setTimeout(() => firstOrder.classList.remove('flash'), 1500);
+                        }
+                    }, 100);
+                }
+            }
+
+            lastOrderCount = currentCount;
+            renderOrders();
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // LISTEN FOR CHANGES (across tabs)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
         window.addEventListener('storage', (e) => {
             if (e.key === 'kds_orders') {
-                // Another tab updated orders - reload
-                orders = JSON.parse(e.newValue || '[]');
                 renderOrders();
+                // Check if this was a new order
+                const orders = getOrders();
+                if (orders.length > 0) {
+                    const newest = orders[0];
+                    if (newest && !newest.completed && !newest._seen) {
+                        newest._seen = true;
+                        saveOrders(orders);
+                        playSound('new');
+                        setTimeout(() => {
+                            const firstOrder = document.querySelector('.order');
+                            if (firstOrder) {
+                                firstOrder.classList.add('flash');
+                                setTimeout(() => firstOrder.classList.remove('flash'), 1500);
+                            }
+                        }, 100);
+                    }
+                }
             }
         });
 
-        // Also listen for broadcast channel (for real-time across tabs)
-        const channel = new BroadcastChannel('headless_waiter');
-        channel.onmessage = (event) => {
-            if (event.data.type === 'new_order') {
-                receiveOrder(event.data.payload);
-            }
-        };
-
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 7. REQUEST NOTIFICATION PERMISSION
+        // INIT
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+        // Initial render
+        renderOrders();
+
+        // Check for new orders every 2 seconds
+        setInterval(checkForNewOrders, 2000);
+
+        // Request notification permission
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 8. INIT
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        renderOrders();
-
-        // Log instructions to console
         console.log('🍳 Kitchen Display System ready!');
-        console.log('📋 To test, open the menu page and place an order.');
-        console.log('📡 Orders sync across all open KDS tabs automatically.');
+        console.log('📋 Waiting for orders...');
+        console.log('💡 Open the menu page and place an order to test.');
     </script>
-
 </body>
 </html>
